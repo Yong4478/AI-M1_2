@@ -1,0 +1,6 @@
+{
+  "name": "seoul-weather-assistant-frontend",
+  "private": true,
+  "description": "Vanilla HTML/CSS/JS frontend (no framework). build.js only writes config.js from env.",
+  "scripts": { "build": "node build.js" }
+}
