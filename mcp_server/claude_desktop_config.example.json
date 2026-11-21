@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "seoul-weather-assistant": {
+      "command": "python",
+      "args": ["C:/Users/user/ai-weather-assistant/mcp_server/server.py"],
+      "env": { "API_BASE_URL": "https://<render-서비스-이름>.onrender.com" }
+    }
+  }
+}
