@@ -9,11 +9,32 @@ from __future__ import annotations
 
 import statistics
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 TREND_WINDOW = 7          # 최근 7일 vs 직전 7일 비교
 MONTHLY_LIMIT = 12        # 프롬프트에 넣을 최근 월 수
+
+
+STALE_DAYS = 7           # 데이터가 오늘보다 이만큼 넘게 오래되면 '과거 데이터'로 본다
+
+
+def reference_info(end: str | None, mode: str = "auto", today: date | None = None) -> dict[str, Any]:
+    """분석 기준일을 정한다.
+
+    과거 데이터(예: 2024년)로 서비스할 때 '이번 달', '최근 일주일'을 오늘(2026년)로 해석하면 답할 수 없으므로,
+    데이터의 마지막 날짜를 기준일로 삼아 상대적인 기간을 해석하게 한다.
+    """
+    today = today or date.today()
+    if mode not in ("auto", "today"):
+        ref = date.fromisoformat(mode)                       # 직접 지정
+        return {"reference_date": ref.isoformat(), "is_historical": ref < today - timedelta(days=STALE_DAYS)}
+    if mode == "today" or not end:
+        return {"reference_date": today.isoformat(), "is_historical": False}
+    last = date.fromisoformat(end)
+    if (today - last).days > STALE_DAYS:
+        return {"reference_date": last.isoformat(), "is_historical": True}
+    return {"reference_date": today.isoformat(), "is_historical": False}
 
 
 def _r(v: float, d: int = 2) -> float:

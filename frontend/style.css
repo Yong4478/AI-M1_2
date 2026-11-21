@@ -78,6 +78,7 @@ a { color: var(--primary); }
 .status-ok { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
 .status-error { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 
+.banner .diag { white-space: pre-line; text-align: left; }
 .banner {
   display: flex; align-items: center; gap: 10px; justify-content: center;
   padding: 10px 16px; background: var(--warn-bg); color: var(--warn-text); font-size: .9rem;
@@ -148,6 +149,8 @@ a { color: var(--primary); }
 
 .welcome { margin: auto; text-align: center; color: var(--muted); max-width: 460px; }
 .welcome-title { font-size: 1.2rem; color: var(--text); font-weight: 700; margin-bottom: 4px; }
+.ref-note { margin: 10px auto 0; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-text); font-size: .85rem; }
+.ref-badge { font-style: normal; font-size: .68rem; background: var(--warn-bg); color: var(--warn-text); border-radius: 6px; padding: 0 5px; margin-left: 4px; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
 .suggestion { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: .85rem; }
 .suggestion:hover { border-color: var(--primary); color: var(--primary); }

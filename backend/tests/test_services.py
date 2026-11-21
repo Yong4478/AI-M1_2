@@ -205,6 +205,22 @@ def test_statistics():
     assert len(st["weekday_average"]) == 7 and st["volatility"]["daily_change_std"] > 0
 
 
+def test_reference_date_for_historical_data():
+    today = date(2026, 11, 21)
+    old = summary_service.reference_info("2024-12-31", "auto", today)
+    assert old == {"reference_date": "2024-12-31", "is_historical": True}
+    fresh = summary_service.reference_info("2026-11-18", "auto", today)
+    assert fresh == {"reference_date": "2026-11-21", "is_historical": False}
+    assert summary_service.reference_info("2024-12-31", "today", today)["is_historical"] is False
+    assert summary_service.reference_info("2024-12-31", "2024-06-30", today)["reference_date"] == "2024-06-30"
+
+    seed(120)  # 2025-01-01 ~ 2025-04-30 → 오늘보다 오래된 데이터
+    s = data_service.get_summary()
+    assert s["is_historical"] and s["reference_date"] == "2025-04-30"
+    prompt = chat_service.build_system_prompt(s, True)
+    assert "분석 기준일: 2025-04-30" in prompt and "상대적인 기간" in prompt
+
+
 if __name__ == "__main__":
     tests = [v for k, v in dict(globals()).items() if k.startswith("test_")]
     for t in tests:

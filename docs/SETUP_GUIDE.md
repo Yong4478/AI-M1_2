@@ -101,6 +101,41 @@ ALLOWED_ORIGINS=http://localhost:5500,http://127.0.0.1:5500
 >
 > 💡 `seed_data.py`가 인터넷 문제로 실패하면, 화면에 나온 URL을 브라우저로 열어 `raw.json`으로 저장한 뒤 `scripts\seed_data.py --json raw.json`으로 실행하세요.
 
+### 3-1-1. (선택) 내가 가진 CSV로 데이터 넣기
+
+`seed_data.py --csv`는 열 이름을 자동으로 찾습니다. 먼저 `--dry-run`으로 어떻게 읽히는지 확인한 뒤, `--reset`으로 기존 데이터를 지우고 넣으세요.
+
+**이전 과제 CSV가 `backend/data/seoul_2000_2024.csv`에 들어 있습니다 (9,132일, 결측 0).** 2024년 1년치(366일)를 넣는 명령:
+
+```powershell
+.venv\Scripts\python.exe scripts\seed_data.py --csv data\seoul_2000_2024.csv --start 2024-01-01 --dry-run   # 확인
+.venv\Scripts\python.exe scripts\seed_data.py --csv data\seoul_2000_2024.csv --start 2024-01-01 --reset     # 저장
+```
+
+- `--last 365`가 아니라 `--start 2024-01-01`을 쓰는 이유: 2024년은 윤년(366일)이라 `--last 365`면 1월 1일이 빠집니다.
+- 2년치 비교 질문까지 하려면 `--start 2023-01-01` (731개)을 쓰세요.
+- 데이터가 오늘보다 오래되었기 때문에, 서버는 **데이터 마지막 날(2024-12-31)을 분석 기준일**로 삼습니다. "이번 달", "최근"은 2024년 12월 기준으로 답하고, 화면에도 기준일이 표시됩니다 (`DATA_REFERENCE_DATE=auto`).
+
+다른 CSV를 쓸 때의 예시:
+
+```powershell
+.venv\Scripts\python.exe scripts\seed_data.py --csv my_steps.csv --value-col 걸음수 --memo-col 비고 --reset
+```
+
+| 항목 | 자동 처리 |
+|---|---|
+| 날짜 열 | `date`, `날짜`, `일자`, `일시`, `Date` 등 |
+| 값 열 | `value`, `값`, `tmean`, `평균기온(°C)`, `temp`, `close`, `종가` 등 (없으면 `--value-col`로 지정) |
+| 메모 열 | `memo`, `메모`, `비고`, `note`. 이전 과제 CSV는 최고/최저/강수로 메모를 자동 생성 |
+| 날짜 형식 | `2024-01-01`, `2024/01/01`, `2024.01.01`, `20240101`, `2024-01-01 09:00` |
+| 인코딩 | UTF-8, CP949(엑셀·기상청 자료) |
+| 정리 | 빈 값·숫자가 아닌 값은 건너뛰고, 같은 날짜는 첫 행만 사용. `8,000`처럼 쉼표 있는 숫자도 처리 |
+| 기간 | `--last 365` (최근 N개), `--start 2025-01-01`, `--end 2025-12-31` |
+
+- **데이터는 100개 이상**이어야 합니다 (과제 조건). 적으면 경고가 나옵니다.
+- **너무 많으면 줄이세요.** 수천 개 이상이면 Firestore 무료 읽기 한도(하루 5만 회)에 부담이 되므로 `--last 365` 정도를 권장합니다.
+- **다른 주제(걸음 수, 학습 시간 등)라면** `.env`(배포 시 Render 환경 변수)의 `DATA_TITLE`과 `DATA_UNIT`을 바꾸세요. 예: `DATA_TITLE=하루 걸음 수`, `DATA_UNIT=걸음`. AI 프롬프트와 화면 표시가 함께 바뀝니다.
+
 ### 3-2. 프론트엔드
 
 새 PowerShell 창에서 실행합니다.

@@ -49,7 +49,7 @@
     <!-- ② 채팅 -->
     <section class="panel chat-panel" aria-label="AI 채팅">
       <div id="summaryStrip" class="summary-strip">
-        <div class="chip-stat"><span>기간</span><strong id="sumPeriod">-</strong></div>
+        <div class="chip-stat"><span>기간 <em id="sumRef" class="ref-badge" hidden></em></span><strong id="sumPeriod">-</strong></div>
         <div class="chip-stat"><span>개수</span><strong id="sumCount">-</strong></div>
         <div class="chip-stat"><span>평균</span><strong id="sumAvg">-</strong></div>
         <div class="chip-stat"><span>최근 추세</span><strong id="sumTrend">-</strong></div>
@@ -59,8 +59,9 @@
       <div id="messages" class="messages" aria-live="polite">
         <div class="welcome" id="welcome">
           <p class="welcome-title">무엇이든 물어보세요 👋</p>
-          <p>저장된 <strong>서울 일평균 기온</strong> 데이터를 바탕으로 답해 드려요.</p>
-          <div class="suggestions">
+          <p>저장된 <strong id="welcomeTitle">서울 일평균 기온</strong> 데이터를 바탕으로 답해 드려요.</p>
+          <p id="refNote" class="ref-note" hidden></p>
+          <div class="suggestions" id="suggestions">
             <button type="button" class="suggestion">최근 일주일 기온 추세가 어때?</button>
             <button type="button" class="suggestion">가장 더웠던 날 TOP 3 알려줘</button>
             <button type="button" class="suggestion">지난달 평균 기온은 몇 도였어?</button>
@@ -107,7 +108,7 @@
         <form id="dataForm" class="data-form">
           <div class="form-row">
             <label><span>날짜</span><input type="date" id="fDate" required /></label>
-            <label><span>값 (<span class="unit">℃</span>)</span><input type="number" id="fValue" step="0.1" min="-100" max="100" required /></label>
+            <label><span>값 (<span class="unit">℃</span>)</span><input type="number" id="fValue" step="any" required /></label>
           </div>
           <label><span>메모</span><input type="text" id="fMemo" maxlength="200" placeholder="예: 맑음, 일교차 큼" /></label>
           <div class="form-actions">

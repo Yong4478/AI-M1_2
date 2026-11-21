@@ -56,12 +56,21 @@ def build_system_prompt(summary: dict[str, Any], tools_enabled: bool) -> str:
     u = summary["unit"]
     monthly = "\n".join(f"   - {m['month']}: 평균 {m['average']}{u} (최고 {m['max']}{u}, 최저 {m['min']}{u}, {m['count']}일)"
                         for m in summary.get("monthly", [])) or "   - 없음"
-    tool_rule = ("- 요약에 없는 특정 날짜·기간의 값이나 순위가 필요하면 제공된 도구를 호출해 확인한 뒤 답하세요.\n"
+    tool_rule = ("- 요약에 없는 특정 날짜·기간의 값이나 순위가 필요하면 제공된 도구를 호출해 확인한 뒤 답하세요. "
+                 "'지난주', '이번 달 1~7일' 같은 기간은 분석 기준일로 실제 날짜(YYYY-MM-DD)를 계산해 도구에 넣으세요.\n"
                  if tools_enabled else
                  "- 요약에 없는 세부 값은 추측하지 말고, 데이터 관리 화면에서 확인하도록 안내하세요.\n")
+    ref = summary.get("reference_date") or date.today().isoformat()
+    if summary.get("is_historical"):
+        date_block = (f"오늘 날짜: {date.today().isoformat()}\n"
+                      f"분석 기준일: {ref} (데이터의 마지막 날짜)\n"
+                      "※ 이 데이터는 과거 기록입니다. 사용자가 '오늘', '이번 주', '이번 달', '최근', '지난달', '올해'처럼 "
+                      "상대적인 기간을 말하면 실제 오늘이 아니라 **분석 기준일**을 기준으로 해석하세요. "
+                      f"그리고 답변 첫 문장에 '데이터 기준일({ref}) 기준으로'처럼 기준을 밝히세요.\n")
+    else:
+        date_block = f"오늘 날짜(분석 기준일): {ref}\n"
     return f"""당신은 사용자의 데이터를 이해하고 답하는 '데이터 분석 비서'입니다.
-오늘 날짜: {date.today().isoformat()}
-
+{date_block}
 [사용자 데이터 요약]
 - 데이터 종류: {summary['title']} (단위: {u})
 - 데이터 기간: {summary['period']}
@@ -79,7 +88,7 @@ def build_system_prompt(summary: dict[str, Any], tools_enabled: bool) -> str:
 
 
 def _summary_brief(summary: dict[str, Any]) -> dict[str, Any]:
-    return {k: summary.get(k) for k in ("title", "period", "count", "metrics", "trend")}
+    return {k: summary.get(k) for k in ("title", "period", "count", "metrics", "trend", "reference_date", "is_historical")}
 
 
 def _call_openai(messages: list[dict[str, Any]], use_tools: bool):

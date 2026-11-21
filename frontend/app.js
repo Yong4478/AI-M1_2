@@ -34,9 +34,8 @@ async function api(path, { method = "GET", body, timeout = 30000 } = {}) {
       signal: ctrl.signal,
     });
   } catch (e) {
-    throw new ApiError(e.name === "AbortError"
-      ? "서버 응답이 너무 늦어요. 잠시 후 다시 시도해 주세요."
-      : "서버에 연결할 수 없어요. 주소(API_BASE_URL)나 CORS 설정을 확인해 주세요.", 0);
+    if (e.name === "AbortError") throw new ApiError("서버 응답이 너무 늦어요. 잠시 후 다시 시도해 주세요.", 0);
+    throw new ApiError(await diagnoseConnection(), 0);
   } finally {
     clearTimeout(timer);
   }
@@ -52,6 +51,36 @@ async function api(path, { method = "GET", body, timeout = 30000 } = {}) {
     throw new ApiError(msg, res.status);
   }
   return payload;
+}
+
+/* 연결 실패 원인 진단: 브라우저는 '서버 꺼짐'과 'CORS 차단'을 같은 오류로 보여 주므로 직접 구분한다.
+   no-cors 요청은 CORS 검사 없이 서버 도달 여부만 확인할 수 있다. */
+async function diagnoseConnection() {
+  const here = location.origin;
+  if (location.protocol === "file:") {
+    return "index.html을 파일로 직접 열었어요. 브라우저가 이 경우 요청을 막습니다.\n" +
+      "frontend 폴더에서 `python -m http.server 5500` 실행 후 http://localhost:5500 으로 접속하세요.";
+  }
+  if (location.protocol === "https:" && API_BASE.startsWith("http://") && !API_BASE.includes("localhost")) {
+    return `https 페이지에서 http 주소(${API_BASE})는 호출할 수 없어요. API_BASE_URL을 https:// 주소로 바꾸세요.`;
+  }
+  let reachable = false;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    await fetch(API_BASE + "/health", { mode: "no-cors", signal: ctrl.signal });
+    clearTimeout(t);
+    reachable = true;
+  } catch { reachable = false; }
+  if (reachable) {
+    return `서버(${API_BASE})는 켜져 있지만 브라우저가 응답을 막았어요 (CORS).\n` +
+      `백엔드 환경 변수 ALLOWED_ORIGINS에 현재 주소 "${here}" 를 정확히 추가하세요 (끝에 / 없이). ` +
+      "추가했는데도 같다면 서버 로그에서 500 오류를 확인하세요.";
+  }
+  return `서버(${API_BASE})에 연결할 수 없어요.\n` +
+    (API_BASE.includes("localhost") || API_BASE.includes("127.0.0.1")
+      ? "백엔드가 실행 중인지 확인하세요: backend 폴더에서 `python -m uvicorn main:app --reload`"
+      : "주소(API_BASE_URL)가 맞는지, Render 서비스가 배포 완료(Live) 상태인지 확인하세요. 잠들어 있으면 1분 후 다시 시도하세요.");
 }
 
 /* ───────────── 공통: UI 도우미 ───────────── */
@@ -89,6 +118,7 @@ function fmtTime(iso) {
 async function wakeServer() {
   const pill = $("serverStatus");
   const bannerTimer = setTimeout(() => ($("wakeBanner").hidden = false), 2500);
+  let lastError = "";
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const h = await api("/health", { timeout: 70000 });
@@ -98,14 +128,17 @@ async function wakeServer() {
       pill.className = "status-pill " + (h.openai_configured ? "status-ok" : "status-pending");
       return true;
     } catch (e) {
+      lastError = e.message;
+      if (/CORS|파일로 직접|https 페이지/.test(e.message)) break;   // 기다려도 해결되지 않는 원인
       pill.textContent = `서버 깨우는 중… (${attempt}/3)`;
     }
   }
   clearTimeout(bannerTimer);
-  $("wakeBanner").hidden = true;
   pill.textContent = "서버 연결 실패";
   pill.className = "status-pill status-error";
-  toast("백엔드 서버에 연결하지 못했어요. 잠시 후 새로고침해 주세요.", true);
+  const banner = $("wakeBanner");
+  banner.replaceChildren(el("span", { class: "diag", text: "⚠️ " + (lastError || "백엔드 서버에 연결하지 못했어요.") }));
+  banner.hidden = false;
   return false;
 }
 
@@ -119,12 +152,53 @@ async function loadSummary() {
   }
 }
 
+/* 과거 데이터일 때 기준일 안내: '이번 달', '최근'은 데이터 마지막 날 기준으로 답한다는 것을 알려 준다 */
+function renderReference(s) {
+  const ref = s.reference_date;
+  const note = welcomeNode && welcomeNode.querySelector("#refNote");
+  if (s.is_historical && ref) {
+    const [y, m] = ref.split("-");
+    $("sumRef").textContent = `기준일 ${ref}`;
+    $("sumRef").hidden = false;
+    if (note) {
+      note.textContent = `📅 과거 데이터예요. '이번 달', '최근'은 데이터 기준일(${ref}) 기준, 즉 ${y}년 ${Number(m)}월로 답해요.`;
+      note.hidden = false;
+    }
+  } else {
+    $("sumRef").hidden = true;
+    if (note) note.hidden = true;
+  }
+}
+
+/* 추천 질문을 실제 데이터 기간에 맞춰 만든다 (데이터 밖 기간을 묻는 버튼이 생기지 않도록) */
+function renderSuggestions(s) {
+  const box = welcomeNode && welcomeNode.querySelector("#suggestions");
+  if (!box || !s.metrics || !s.monthly.length) return;
+  const isTemp = s.unit === "℃";
+  const noun = isTemp ? "기온" : s.title;
+  const topic = isTemp ? "기온은" : `${s.title}은(는)`;
+  const label = (ym) => { const [y, m] = ym.split("-"); return `${y}년 ${Number(m)}월`; };
+  const months = s.monthly.map((m) => m.month);
+  const prev = months.length > 1 ? months[months.length - 2] : months[0];
+  const peak = s.monthly.reduce((a, b) => (b.average > a.average ? b : a)).month;
+  const questions = [
+    `이번 달 ${topic} 어때?`,
+    `가장 ${isTemp ? "더웠던" : "높았던"} 날 TOP 3 알려줘`,
+    `${label(prev)} 평균 ${topic} ${isTemp ? "몇 도였어?" : "얼마였어?"}`,
+    `${label(peak)} 1일부터 7일까지 ${noun} 알려줘`,
+  ];
+  box.replaceChildren(...questions.map((q) => el("button", { type: "button", class: "suggestion", text: q })));
+}
+
 function trendClass(dir) { return dir === "상승" ? "trend-up" : dir === "하락" ? "trend-down" : ""; }
 
 function renderSummary() {
   const s = state.summary;
   const u = s.unit;
   document.querySelectorAll(".unit").forEach((n) => (n.textContent = u));
+  if (welcomeNode) welcomeNode.querySelector("#welcomeTitle").textContent = s.title;
+  renderReference(s);
+  renderSuggestions(s);
   const dir = s.trend_detail.direction;
   const arrow = { "상승": "↗", "하락": "↘", "유지": "→" }[dir] || "";
 
@@ -489,7 +563,7 @@ async function sendMessage(text) {
     const res = await api("/api/chat", { method: "POST", body: { message: text, conversation_id: state.conversationId }, timeout: 120000 });
     const s = res.summary_used || {};
     typing.replaceWith(messageNode("assistant", res.reply, res.tool_calls, new Date().toISOString(),
-      `📊 요약 반영: ${s.period || "-"} · ${s.count ?? 0}개`));
+      `📊 요약 반영: ${s.period || "-"} · ${s.count ?? 0}개` + (s.is_historical ? ` · 기준일 ${s.reference_date}` : "")));
     if (!res.saved) toast("답변은 받았지만 대화 저장에 실패했어요.", true);
     const isNew = !state.conversationId;
     state.conversationId = res.conversation_id;
@@ -543,7 +617,10 @@ function bindEvents() {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMessage($("chatInput").value); }
   });
   $("chatInput").addEventListener("input", autoGrow);
-  document.querySelectorAll(".suggestion").forEach((b) => b.addEventListener("click", () => sendMessage(b.textContent)));
+  $("suggestions").addEventListener("click", (e) => {   // 버튼이 다시 그려져도 동작하도록 위임 방식
+    const b = e.target.closest(".suggestion");
+    if (b) sendMessage(b.textContent);
+  });
   $("newChatBtn").addEventListener("click", newChat);
   $("themeToggle").addEventListener("click", toggleTheme);
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
@@ -559,6 +636,7 @@ function bindEvents() {
 }
 
 async function init() {
+  console.info("[설정] API_BASE_URL =", API_BASE, "| 현재 페이지 origin =", location.origin);
   welcomeNode = $("welcome");
   $("docsLink").href = API_BASE + "/docs";
   $("fDate").value = today();

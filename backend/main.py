@@ -30,6 +30,19 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# 예상하지 못한 오류(500)도 JSON으로 돌려준다.
+# 이 미들웨어를 CORS보다 먼저 등록해야 CORS가 바깥에서 감싸, 500 응답에도 CORS 헤더가 붙는다.
+# (헤더가 없으면 브라우저는 실제 오류 대신 "연결 실패/CORS 오류"로만 보여 준다)
+@app.middleware("http")
+async def catch_unhandled_errors(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Unhandled error on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(status_code=500, content={"detail": "서버 내부 오류가 발생했습니다. Render 로그를 확인하세요.",
+                                                      "code": "internal_error"})
+
+
 # CORS: 브라우저는 다른 도메인(Vercel)에서 오는 요청을 기본적으로 막는다.
 # 허용할 프론트엔드 주소만 환경 변수 ALLOWED_ORIGINS로 지정한다. (* 전체 허용은 쓰지 않는다)
 app.add_middleware(
@@ -45,12 +58,6 @@ app.add_middleware(
 @app.exception_handler(AppError)
 async def app_error_handler(_: Request, exc: AppError):
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "code": exc.code})
-
-
-@app.exception_handler(Exception)
-async def unhandled_error_handler(_: Request, exc: Exception):
-    log.exception("Unhandled error: %s", exc)
-    return JSONResponse(status_code=500, content={"detail": "서버 내부 오류가 발생했습니다.", "code": "internal_error"})
 
 
 app.include_router(data.router)
@@ -72,4 +79,5 @@ def health():
         "openai_configured": bool(settings.openai_api_key),
         "model": settings.openai_model,
         "tools_enabled": settings.enable_tools,
+        "allowed_origins": settings.allowed_origins,   # CORS 설정 확인용 (비밀 값 아님)
     }

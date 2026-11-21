@@ -40,6 +40,9 @@ class Settings:
     allowed_origin_regex: str | None = None
     data_title: str = "서울 일평균 기온"
     data_unit: str = "℃"
+    # 분석 기준일: auto = 데이터가 오늘보다 7일 넘게 오래되었으면 데이터 마지막 날을 기준일로 사용
+    #             today = 항상 오늘, YYYY-MM-DD = 직접 지정
+    data_reference_date: str = "auto"
 
 
 @lru_cache
@@ -57,4 +60,5 @@ def get_settings() -> Settings:
         allowed_origin_regex=os.getenv("ALLOWED_ORIGIN_REGEX") or None,
         data_title=os.getenv("DATA_TITLE", "서울 일평균 기온"),
         data_unit=os.getenv("DATA_UNIT", "℃"),
+        data_reference_date=os.getenv("DATA_REFERENCE_DATE", "auto").strip() or "auto",
     )

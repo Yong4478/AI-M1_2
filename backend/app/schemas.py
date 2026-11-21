@@ -120,6 +120,8 @@ class SummaryResponse(BaseModel):
     trend: str
     trend_detail: TrendDetail
     monthly: list[MonthlyStat] = []
+    reference_date: Optional[str] = Field(None, description="분석 기준일 ('이번 달', '최근'을 해석하는 기준)")
+    is_historical: bool = Field(False, description="데이터가 오늘보다 오래된 과거 데이터인지")
     generated_at: str
 
 

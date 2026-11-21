@@ -21,3 +21,5 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: DATA_REFERENCE_DATE
+        value: auto

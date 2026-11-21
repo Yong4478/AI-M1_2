@@ -1,6 +1,4 @@
 # 🌤️ 서울 날씨 AI 비서 — 내 데이터를 아는 AI
-https://ai-m12-frontend.vercel.app/<img width="1820" height="1982" alt="firedatabase" src="https://github.com/user-attachments/assets/4cd32102-6c19-4c85-b886-efb89d810d73" />
-<img width="1912" height="2086" alt="AI 비서 작동 사진" src="https://github.com/user-attachments/assets/282f9b3d-2354-491b-86bc-5cf56e97e300" />
 
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)
 ![Firestore](https://img.shields.io/badge/DB-Firestore-FFCA28?logo=firebase&logoColor=black)
@@ -95,7 +93,8 @@ ai-weather-assistant/
 │   │   ├── routers/               # data.py · conversations.py · chat.py
 │   │   ├── services/              # data · summary · conversation · chat · tools
 │   │   └── repositories/          # firestore.py (운영) · memory.py (로컬 테스트)
-│   ├── scripts/seed_data.py       # 서울 최근 365일 기온 → Firestore
+│   ├── data/seoul_2000_2024.csv   # 이전 분석 과제의 일별 기온 (9,132일)
+│   ├── scripts/seed_data.py       # CSV 또는 Open-Meteo → Firestore
 │   ├── tests/test_services.py     # 서비스 테스트 (Firebase·OpenAI 없이 실행)
 │   ├── requirements.txt
 │   └── .env.example
@@ -121,7 +120,8 @@ cd backend
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt   # macOS/Linux: .venv/bin/python
 copy .env.example .env                                         # 값 채우기
-.venv\Scripts\python.exe scripts\seed_data.py                  # 초기 데이터 365개 적재
+.venv\Scripts\python.exe scripts\seed_data.py --csv data\seoul_2000_2024.csv --start 2024-01-01 --reset   # 2024년 366일 적재
+# (최근 1년 데이터를 Open-Meteo에서 받으려면: scripts\seed_data.py --reset)
 .venv\Scripts\python.exe -m uvicorn main:app --reload          # http://localhost:8000/docs
 
 # 2) 프론트엔드 (새 터미널)
@@ -143,6 +143,8 @@ python -m http.server 5500                                     # http://localhos
 | `OPENAI_MAX_TOKENS` | | 응답 최대 토큰 (비용 제한) | `1500` |
 | `ENABLE_TOOLS` | | Function Calling 사용 | `true` |
 | `ALLOWED_ORIGIN_REGEX` | | 미리보기 주소 허용용 정규식 | `https://.*\.vercel\.app` |
+| `DATA_REFERENCE_DATE` | | 분석 기준일. `auto`면 데이터가 7일 넘게 오래되었을 때 마지막 날짜를 기준일로 사용 | `auto` / `today` / `2024-12-31` |
+| `DATA_TITLE` · `DATA_UNIT` | | 데이터 이름·단위 (프롬프트와 화면에 표시) | `서울 일평균 기온` · `℃` |
 | `USE_MEMORY_DB` | | Firebase 없이 로컬 테스트 | `false` |
 | `PYTHON_VERSION` | | Render Python 버전 | `3.12.7` |
 
@@ -241,6 +243,12 @@ GPT는 학습 이후의 내 데이터를 모릅니다. 그래서 요청마다 **
 - 월별 평균: …
 [답변 규칙] 수치에는 단위와 날짜를 밝히고, 데이터로 알 수 없는 것은 추측하지 않는다 …
 ```
+
+#### 과거 데이터와 분석 기준일
+
+이 프로젝트는 이전 시계열 분석 과제의 CSV(2000~2024년, `backend/data/seoul_2000_2024.csv`)에서 2024년 366일을 사용합니다. 데이터가 오늘(2026년)보다 오래되었으므로, 오늘 날짜로 "이번 달"을 해석하면 데이터가 없어 답할 수 없습니다.
+
+그래서 **데이터의 마지막 날을 분석 기준일**로 정해 요약에 담습니다(`reference_date`, `is_historical`). 시스템 프롬프트에는 "상대적인 기간은 기준일로 해석하고, 답변에 기준일을 밝혀라"라는 규칙을 넣었습니다. 프론트는 기준일 배지·안내 문구를 보여 주고, 데이터 기간 안의 질문만 추천 버튼으로 만듭니다.
 
 ### 3. 라우터 / 서비스 / 저장소 분리 기준
 

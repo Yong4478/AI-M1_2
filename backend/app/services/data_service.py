@@ -102,6 +102,7 @@ def get_summary() -> dict[str, Any]:
             return _cache["summary"]
     s = get_settings()
     summary = summary_service.compute_summary(records, s.data_title, s.data_unit)
+    summary.update(summary_service.reference_info(summary.get("end"), s.data_reference_date))
     with _cache_lock:
         _cache["summary"] = summary
     return summary
