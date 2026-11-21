@@ -1,4 +1,6 @@
 # 🌤️ 서울 날씨 AI 비서 — 내 데이터를 아는 AI
+https://ai-m12-frontend.vercel.app/<img width="1820" height="1982" alt="firedatabase" src="https://github.com/user-attachments/assets/4cd32102-6c19-4c85-b886-efb89d810d73" />
+<img width="1912" height="2086" alt="AI 비서 작동 사진" src="https://github.com/user-attachments/assets/282f9b3d-2354-491b-86bc-5cf56e97e300" />
 
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)
 ![Firestore](https://img.shields.io/badge/DB-Firestore-FFCA28?logo=firebase&logoColor=black)
