@@ -1,0 +1,75 @@
+"""서울 날씨 AI 비서 — FastAPI 백엔드
+
+로컬 실행:  uvicorn main:app --reload
+API 문서:   http://localhost:8000/docs (Swagger UI)
+"""
+
+import logging
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.config import get_settings
+from app.errors import AppError
+from app.routers import chat, conversations, data
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("app")
+settings = get_settings()
+
+app = FastAPI(
+    title="서울 날씨 AI 비서 API",
+    description=(
+        "서울 일평균 기온 시계열을 저장·분석하고, 데이터 요약을 시스템 프롬프트에 주입해 "
+        "맞춤형 답변을 하는 AI 비서 API입니다.\n\n"
+        "- **데이터**: CRUD + 요약(summary) + 확장 통계(statistics)\n"
+        "- **대화 기록**: 저장 · 목록 · 불러오기 · 삭제\n"
+        "- **AI 채팅**: 컨텍스트 주입 + Function Calling + 자동 저장"
+    ),
+    version="1.0.0",
+)
+
+# CORS: 브라우저는 다른 도메인(Vercel)에서 오는 요청을 기본적으로 막는다.
+# 허용할 프론트엔드 주소만 환경 변수 ALLOWED_ORIGINS로 지정한다. (* 전체 허용은 쓰지 않는다)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_origin_regex=settings.allowed_origin_regex,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(_: Request, exc: AppError):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "code": exc.code})
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(_: Request, exc: Exception):
+    log.exception("Unhandled error: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": "서버 내부 오류가 발생했습니다.", "code": "internal_error"})
+
+
+app.include_router(data.router)
+app.include_router(conversations.router)
+app.include_router(chat.router)
+
+
+@app.get("/", tags=["상태"], summary="서비스 정보")
+def root():
+    return {"service": "서울 날씨 AI 비서 API", "docs": "/docs", "health": "/health"}
+
+
+@app.get("/health", tags=["상태"], summary="헬스 체크 (콜드스타트 깨우기용)")
+def health():
+    """DB 연결 없이 즉시 응답한다. 프론트는 첫 화면에서 이 주소로 서버를 먼저 깨운다."""
+    return {
+        "status": "ok",
+        "database": "memory" if settings.use_memory_db else "firestore",
+        "openai_configured": bool(settings.openai_api_key),
+        "model": settings.openai_model,
+        "tools_enabled": settings.enable_tools,
+    }
